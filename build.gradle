@@ -5,11 +5,21 @@ plugins {
 }
 
 group = 'com.squirrelly_app'
-version = '0.0.1-SNAPSHOT'
+version = '0.0.1'
 
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+jar {
+	manifest {
+		attributes "Main-Class": "com.squirrelly_app.hello_plate_api.HelloPlateApiApplication"
+	}
+
+	from {
+		configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
 	}
 }
 
