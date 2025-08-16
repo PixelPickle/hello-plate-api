@@ -15,6 +15,7 @@ public class MenuCourseRecipe {
     private Category category;
     private List<Cuisine> cuisines;
     private List<Tag> tags;
+    private List<Ingredient> ingredients;
     private int difficulty;
     private String prepTime;
     private String totalTime;

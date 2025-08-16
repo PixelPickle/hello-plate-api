@@ -8,5 +8,6 @@ import java.util.List;
 public class SsrPayload {
 
     List<MenuCourse> courses;
+    MenuCourseRecipe recipe;
 
 }

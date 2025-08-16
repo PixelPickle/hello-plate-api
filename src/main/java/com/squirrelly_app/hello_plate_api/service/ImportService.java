@@ -1,11 +1,10 @@
 package com.squirrelly_app.hello_plate_api.service;
 
+import com.squirrelly_app.hello_plate_api.exception.InvalidRecipeId;
 import com.squirrelly_app.hello_plate_api.exception.InvalidResponseException;
 import com.squirrelly_app.hello_plate_api.exception.RequiredValueException;
-import com.squirrelly_app.hello_plate_api.model.document.Category;
-import com.squirrelly_app.hello_plate_api.model.document.Cuisine;
-import com.squirrelly_app.hello_plate_api.model.document.Recipe;
-import com.squirrelly_app.hello_plate_api.model.hello_fresh.Menu;
+import com.squirrelly_app.hello_plate_api.model.document.*;
+import com.squirrelly_app.hello_plate_api.model.hello_fresh.Response;
 import com.squirrelly_app.hello_plate_api.model.hello_fresh.MenuCourse;
 import com.squirrelly_app.hello_plate_api.model.hello_fresh.MenuCourseRecipe;
 import com.squirrelly_app.hello_plate_api.util.LogUtil;
@@ -18,10 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -54,22 +50,26 @@ public class ImportService {
 
             String url = UrlUtil.getMenuUrl(magic, year, week);
 
-            Menu menu = restTemplate.getForObject(url, Menu.class);
+            Response response = restTemplate.getForObject(url, Response.class);
 
-            if (menu == null || menu.getPageProps() == null || menu.getPageProps().getSsrPayload() == null || menu.getPageProps().getSsrPayload().getCourses() == null || menu.getPageProps().getSsrPayload().getCourses().isEmpty()) {
+            if (response == null || response.getPageProps() == null || response.getPageProps().getSsrPayload() == null || response.getPageProps().getSsrPayload().getCourses() == null || response.getPageProps().getSsrPayload().getCourses().isEmpty()) {
                 throw new InvalidResponseException("Menu Value is Invalid");
             }
 
-            List<MenuCourseRecipe> rawRecipes = menu.getPageProps().getSsrPayload().getCourses().stream()
+            List<MenuCourseRecipe> rawRecipes = response.getPageProps().getSsrPayload().getCourses().stream()
                     .map(MenuCourse::getRecipe)
                     .filter(Objects::nonNull)
                     .toList();
 
             LogUtil.postResponse(logger, callId, callTag, String.format("Found %s Recipes...", rawRecipes.size()));
 
-            importAllRecipesFromMenu(rawRecipes, callId, callTag);
-            importAllCategoriesFromMenu(rawRecipes, callId, callTag);
-            importAllCuisinesFromMenu(rawRecipes, callId, callTag);
+            List<MenuCourseRecipe> populatedRecipes = populateAllRecipes(rawRecipes, magic, callId, callTag);
+
+            importAllRecipesFromMenu(populatedRecipes, callId, callTag);
+            importAllIngredientsFromMenu(populatedRecipes, callId, callTag);
+            importAllIngredientFamiliesFromMenu(populatedRecipes, callId, callTag);
+            importAllCategoriesFromMenu(populatedRecipes, callId, callTag);
+            importAllCuisinesFromMenu(populatedRecipes, callId, callTag);
 
             return new ResponseEntity<>(HttpStatus.OK);
 
@@ -89,6 +89,91 @@ public class ImportService {
 
     }
 
+    public ResponseEntity<Void> importRecipe(String magic, String recipeId) {
+
+        Long callId = new Date().getTime();
+        String callTag = "ImportService.importRecipe";
+
+        LogUtil.postRequest(logger, callId, callTag, String.format("%s/%s", magic, recipeId));
+
+        try {
+
+            if (magic == null || recipeId == null) {
+                throw new  RequiredValueException("Required parameters missing");
+            }
+
+            Optional<Recipe> recipe = databaseService.recipeRepository.findById(recipeId);
+
+            if (recipe.isEmpty()) {
+                throw new InvalidRecipeId(recipeId);
+            }
+
+            String url = UrlUtil.getRecipeUrl(magic, recipe.get());
+
+            Response response = restTemplate.getForObject(url, Response.class);
+
+            if (response == null || response.getPageProps() == null || response.getPageProps().getSsrPayload() == null || response.getPageProps().getSsrPayload().getRecipe() == null) {
+                throw new InvalidResponseException("Response Value is Invalid");
+            }
+
+            MenuCourseRecipe rawRecipe = response.getPageProps().getSsrPayload().getRecipe();
+
+            LogUtil.postResponse(logger, callId, callTag, rawRecipe.toString());
+
+            importRecipe(rawRecipe, callId, callTag);
+            importAllIngredientsFromRecipe(rawRecipe, callId, callTag);
+            importAllIngredientFamiliesFromRecipe(rawRecipe, callId, callTag);
+
+            return new ResponseEntity<>(HttpStatus.OK);
+
+        } catch (RequiredValueException exception) {
+
+            LogUtil.postError(logger, callId, callTag, exception.getMessage());
+
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+
+        } catch (Exception exception) {
+
+            LogUtil.postError(logger, callId, callTag, exception.getMessage());
+
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+
+        }
+
+    }
+
+    private List<MenuCourseRecipe> populateAllRecipes(@NotNull List<MenuCourseRecipe> recipes, @NotNull String magic, @NotNull Long callId, @NotNull String callTag) {
+
+        List<MenuCourseRecipe> populatedRecipes = new ArrayList<>();
+
+        for (MenuCourseRecipe recipe : recipes) {
+
+            LogUtil.postRequest(logger, callId, callTag, String.format("Populating %s", recipe.getName()));
+
+            try {
+
+                String url = UrlUtil.getRecipeUrl(magic, recipe);
+
+                Response response = restTemplate.getForObject(url, Response.class);
+
+                if (response == null || response.getPageProps() == null || response.getPageProps().getSsrPayload() == null || response.getPageProps().getSsrPayload().getRecipe() == null) {
+                    throw new InvalidResponseException("Response Value is Invalid");
+                }
+
+                populatedRecipes.add(response.getPageProps().getSsrPayload().getRecipe());
+
+            } catch (Exception exception) {
+
+                LogUtil.postError(logger, callId, callTag, exception.getMessage());
+
+            }
+
+        }
+
+        return populatedRecipes;
+
+    }
+
     private void importAllRecipesFromMenu(@NotNull List<MenuCourseRecipe> rawRecipes, @NotNull Long callId, @NotNull String callTag) {
 
         List<Recipe> preparedRecipes = rawRecipes.stream()
@@ -99,6 +184,39 @@ public class ImportService {
         LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s Recipes...", preparedRecipes.size()));
 
         databaseService.recipeRepository.saveAll(preparedRecipes);
+
+    }
+
+    private void importAllIngredientsFromMenu(@NotNull List<MenuCourseRecipe> rawRecipes, @NotNull Long callId, @NotNull String callTag) {
+
+        List<Ingredient> preparedIngredients = rawRecipes.stream()
+                .map(MenuCourseRecipe::getIngredients)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .map(Ingredient::new)
+                .filter(distinctByKey(Ingredient::getId))
+                .toList();
+
+        LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s ingredients...", preparedIngredients.size()));
+
+        databaseService.ingredientRepository.saveAll(preparedIngredients);
+
+    }
+
+    private void importAllIngredientFamiliesFromMenu(@NotNull List<MenuCourseRecipe> rawRecipes, @NotNull Long callId, @NotNull String callTag) {
+
+        List<IngredientFamily> preparedIngredientFamilies = rawRecipes.stream()
+                .map(MenuCourseRecipe::getIngredients)
+                .flatMap(List::stream)
+                .map(com.squirrelly_app.hello_plate_api.model.hello_fresh.Ingredient::getFamily)
+                .filter(Objects::nonNull)
+                .map(IngredientFamily::new)
+                .filter(distinctByKey(IngredientFamily::getId))
+                .toList();
+
+        LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s ingredient families...", preparedIngredientFamilies.size()));
+
+        databaseService.ingredientFamilyRepository.saveAll(preparedIngredientFamilies);
 
     }
 
@@ -129,6 +247,44 @@ public class ImportService {
         LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s Cuisines...",  preparedCuisines.size()));
 
         databaseService.cuisineRepository.saveAll(preparedCuisines);
+
+    }
+
+    private void importAllIngredientsFromRecipe(@NotNull MenuCourseRecipe rawRecipe,  @NotNull Long callId, @NotNull String callTag) {
+
+        List<Ingredient> preparedIngredients = rawRecipe.getIngredients().stream()
+                .map(Ingredient::new)
+                .filter(distinctByKey(Ingredient::getId))
+                .toList();
+
+        LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s Ingredients...",  preparedIngredients.size()));
+
+        databaseService.ingredientRepository.saveAll(preparedIngredients);
+
+    }
+
+    private void importAllIngredientFamiliesFromRecipe(@NotNull MenuCourseRecipe rawRecipe, @NotNull Long callId, @NotNull String callTag) {
+
+        List<IngredientFamily> preparedIngredientFamilies = rawRecipe.getIngredients().stream()
+                .map(com.squirrelly_app.hello_plate_api.model.hello_fresh.Ingredient::getFamily)
+                .filter(Objects::nonNull)
+                .map(IngredientFamily::new)
+                .filter(distinctByKey(IngredientFamily::getId))
+                .toList();
+
+        LogUtil.postResponse(logger, callId, callTag, String.format("Importing %s Ingredient Families...", preparedIngredientFamilies.size()));
+
+        databaseService.ingredientFamilyRepository.saveAll(preparedIngredientFamilies);
+
+    }
+
+    private void importRecipe(@NotNull MenuCourseRecipe rawRecipe, @NotNull Long callId, @NotNull String callTag) {
+
+        Recipe preparedRecipe = new Recipe(rawRecipe);
+
+        LogUtil.postResponse(logger, callId, callTag, String.format("Importing Recipe: %s", preparedRecipe.getName()));
+
+        databaseService.recipeRepository.save(preparedRecipe);
 
     }
 

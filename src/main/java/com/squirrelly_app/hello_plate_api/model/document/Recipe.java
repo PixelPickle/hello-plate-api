@@ -1,6 +1,7 @@
 package com.squirrelly_app.hello_plate_api.model.document;
 
 import com.squirrelly_app.hello_plate_api.model.hello_fresh.Cuisine;
+import com.squirrelly_app.hello_plate_api.model.hello_fresh.Ingredient;
 import com.squirrelly_app.hello_plate_api.model.hello_fresh.MenuCourseRecipe;
 import com.squirrelly_app.hello_plate_api.model.hello_fresh.Tag;
 import lombok.Data;
@@ -19,6 +20,8 @@ public class Recipe {
     private String name;
     private String headline;
     private String slug;
+
+    private List<String> ingredients;
 
     private String category;
     private List<String> cuisines;
@@ -45,6 +48,8 @@ public class Recipe {
         this.name = menuCourseRecipe.getName();
         this.headline = menuCourseRecipe.getHeadline();
         this.slug = menuCourseRecipe.getSlug();
+
+        this.ingredients = menuCourseRecipe.getIngredients().stream().map(Ingredient::getId).toList();
 
         if (menuCourseRecipe.getCategory() != null) {
             this.category = menuCourseRecipe.getCategory().getId();

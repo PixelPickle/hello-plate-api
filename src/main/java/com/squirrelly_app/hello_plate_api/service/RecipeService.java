@@ -24,7 +24,7 @@ public class RecipeService {
         this.databaseService = databaseService;
     }
 
-    public ResponseEntity<List<Recipe>> getAllRecipes(@Nullable String category) {
+    public ResponseEntity<List<Recipe>> getAllRecipes(@Nullable String category, String ingredientId) {
 
         Long callId = new Date().getTime();
         String callTag = "RecipeService.getAllRecipes";
@@ -35,8 +35,10 @@ public class RecipeService {
 
             List<Recipe> recipes;
 
-            if (category == null || category.isEmpty()) {
+            if ( (category == null || category.isEmpty()) && (ingredientId == null || ingredientId.isEmpty()) ) {
                 recipes = databaseService.recipeRepository.findAll();
+            } else if (ingredientId != null && !ingredientId.isEmpty()) {
+                recipes = databaseService.recipeRepository.findAllByIngredientsContains(ingredientId);
             } else {
                 recipes = databaseService.recipeRepository.findAllByCategory(category);
             }

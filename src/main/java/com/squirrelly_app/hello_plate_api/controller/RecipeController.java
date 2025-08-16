@@ -18,8 +18,8 @@ public class RecipeController {
     }
 
     @GetMapping(value = "")
-    public ResponseEntity<List<Recipe>> getAllRecipes(@RequestParam(required = false, defaultValue = "") String category) {
-        return recipeService.getAllRecipes(category);
+    public ResponseEntity<List<Recipe>> getAllRecipes(@RequestParam(required = false, defaultValue = "") String category, @RequestParam(required = false, defaultValue = "") String ingredientId) {
+        return recipeService.getAllRecipes(category, ingredientId);
     }
 
     @GetMapping("/{id}")

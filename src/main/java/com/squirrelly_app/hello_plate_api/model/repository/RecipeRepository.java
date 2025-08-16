@@ -22,6 +22,9 @@ public interface RecipeRepository extends MongoRepository<Recipe, String> {
     @Query(value = "{category:  '?0'}")
     List<Recipe> findAllByCategory(String category);
 
+    @Query(value = "{ingredients: '?0' }")
+    List<Recipe> findAllByIngredientsContains(String ingredientId);
+
     long count();
 
 }

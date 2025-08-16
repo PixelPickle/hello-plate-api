@@ -1,11 +1,7 @@
 package com.squirrelly_app.hello_plate_api.service;
 
-import com.squirrelly_app.hello_plate_api.model.document.Category;
-import com.squirrelly_app.hello_plate_api.model.document.Cuisine;
-import com.squirrelly_app.hello_plate_api.model.document.Recipe;
-import com.squirrelly_app.hello_plate_api.model.repository.CategoryRepository;
-import com.squirrelly_app.hello_plate_api.model.repository.CuisineRepository;
-import com.squirrelly_app.hello_plate_api.model.repository.RecipeRepository;
+import com.squirrelly_app.hello_plate_api.model.document.*;
+import com.squirrelly_app.hello_plate_api.model.repository.*;
 
 import com.squirrelly_app.hello_plate_api.util.LogUtil;
 import org.slf4j.Logger;
@@ -22,12 +18,16 @@ public class DatabaseService {
     public final RecipeRepository recipeRepository;
     public final CategoryRepository categoryRepository;
     public final CuisineRepository cuisineRepository;
+    public final IngredientRepository ingredientRepository;
+    public final IngredientFamilyRepository ingredientFamilyRepository;
 
-    public DatabaseService(RecipeRepository recipeRepository, CategoryRepository categoryRepository, CuisineRepository cuisineRepository) {
+    public DatabaseService(RecipeRepository recipeRepository, CategoryRepository categoryRepository, CuisineRepository cuisineRepository, IngredientRepository ingredientRepository, IngredientFamilyRepository ingredientFamilyRepository) {
 
         this.recipeRepository = recipeRepository;
         this.categoryRepository = categoryRepository;
         this.cuisineRepository = cuisineRepository;
+        this.ingredientRepository = ingredientRepository;
+        this.ingredientFamilyRepository = ingredientFamilyRepository;
 
         Logger logger =  LoggerFactory.getLogger(DatabaseService.class);
 
@@ -39,6 +39,12 @@ public class DatabaseService {
 
         List<Cuisine> cuisines = cuisineRepository.findAll();
         LogUtil.getResponse(logger, 0L, "cuisineRepository", "Found " + cuisines.size());
+
+        List<Ingredient> ingredients = ingredientRepository.findAll();
+        LogUtil.getResponse(logger, 0L, "ingredientRepository", "Found " + ingredients.size());
+
+        List<IngredientFamily> ingredientFamilies = ingredientFamilyRepository.findAll();
+        LogUtil.getResponse(logger, 0L, "ingredientFamilyRepository", "Found " + ingredientFamilies.size());
 
     }
 
